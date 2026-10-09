@@ -1,0 +1,180 @@
+"use client";
+
+import { Uploader } from "@/components/file-uploader/uploader";
+import { RichTextEditor } from "@/components/rich-text-editor/editor";
+import { Button, buttonVariants } from "@/components/ui/button";
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from "@/components/ui/card";
+import {
+    Form,
+    FormControl,
+    FormField,
+    FormItem,
+    FormLabel,
+    FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { tryCatch } from "@/hooks/try-catch";
+import { AdminLessonSingularType } from "@/lib/actions/admin/admin-get-lesson";
+import { updateLesson } from "@/lib/actions/admin/course/lesson/update";
+import { lessonSchema, LessonSchemaType } from "@/lib/schema";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { ArrowLeft } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useTransition } from "react";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
+
+interface iAProps {
+    data: AdminLessonSingularType;
+    chapterId: string;
+    courseId: string;
+}
+
+export const LessonForm = ({ data, chapterId, courseId }: iAProps) => {
+    // data es el lesson actual
+
+    const router = useRouter();
+    const [isPending, startTransition] = useTransition();
+
+    const form = useForm<LessonSchemaType>({
+        resolver: zodResolver(lessonSchema),
+        defaultValues: {
+            name: data.title,
+            chapterId: chapterId,
+            courseId: courseId,
+            description: data.description ?? undefined,
+            videoKey: data.videoKey ?? undefined,
+            thumbnailKey: data.thumbnailKey ?? undefined,
+        },
+    });
+
+    const onSubmit = (values: LessonSchemaType) => {
+        startTransition(async () => {
+            const { data: result, error } = await tryCatch(
+                updateLesson(values, data.id),
+            );
+
+            if (error) {
+                toast.error("An Unexpected Error Occurred");
+                return;
+            }
+
+            if (result.status === "success") {
+                toast.success(result.message);
+                form.reset();
+                router.push("/admin/courses");
+            } else if (result.status === "error") {
+                toast.error(result.message);
+            }
+        });
+    };
+    return (
+        <div className="">
+            <Link
+                href={`/admin/courses/${courseId}/edit`}
+                className={buttonVariants({
+                    variant: "outline",
+                    className: "mb-6",
+                })}
+            >
+                <ArrowLeft className="size-4" />
+                <span>Go Back</span>
+            </Link>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle>Lesson Configuration</CardTitle>
+                    <CardDescription>
+                        Configure The Video And Description For This Lesson.
+                    </CardDescription>
+                </CardHeader>
+
+                <CardContent>
+                    <Form {...form}>
+                        <form
+                            onSubmit={form.handleSubmit(onSubmit)}
+                            className="space-y-6"
+                        >
+                            <FormField
+                                control={form.control}
+                                name="name"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Lesson Name</FormLabel>
+                                        <FormControl>
+                                            <Input
+                                                placeholder="Lesson Name"
+                                                {...field}
+                                            />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+
+                            <FormField
+                                control={form.control}
+                                name="description"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Description</FormLabel>
+                                        <FormControl>
+                                            <RichTextEditor field={field} />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+
+                            <FormField
+                                control={form.control}
+                                name="thumbnailKey"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Thumbnail Image</FormLabel>
+                                        <FormControl>
+                                            <Uploader
+                                                onChange={field.onChange}
+                                                value={field.value}
+                                                fileTypeAccepted="image"
+                                            />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="videoKey"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Video File</FormLabel>
+                                        <FormControl>
+                                            <Uploader
+                                                onChange={field.onChange}
+                                                value={field.value}
+                                                fileTypeAccepted="video"
+                                            />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+
+                            <Button type="submit" disabled={isPending}>
+                                {isPending ? "Saving..." : "Save Lesson"}
+                            </Button>
+                        </form>
+                    </Form>
+                </CardContent>
+            </Card>
+        </div>
+    );
+};
